@@ -47,7 +47,7 @@ class Spider(BaseSpider):
         if not all(info):
             return None
         video_url, quality, filename = info
-        self.log(f"got video url {video_url},\nquality is {quality},\ndownload path is{filename}")
+        self.log(f"got video url {video_url},\nquality is {quality},\ndownload path is {filename}")
         self.download(video_url, filename, url, max_worker=10)
 
     def get_js_codes(self, url):
