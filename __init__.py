@@ -32,14 +32,14 @@ def log_process(q):
 
 
 def run(url, q):
-    _, netloc, _, _, _, _ = urlparse(url)
-    _, net, _ = netloc.split(".", 2)
+    _, netloc, *_ = urlparse(url)
+    net = netloc.split(".")[-2]
     if net not in spiders:
         try:
-            lib = importlib.import_module(net)
-        except ImportError as e:
-            q.put((logging.ERROR, e))
-            return
+            lib = importlib.import_module(f"spiders.{net}")
+        except ImportError:
+            q.put((logging.ERROR, f"暂不支持{net}类型爬虫"))
+            return None
         spiders[net] = lib.Spider(q)
     spider = spiders[net]
     spider.run(url)

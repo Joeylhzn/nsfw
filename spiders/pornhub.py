@@ -9,25 +9,20 @@ import tempfile
 
 from lxml import etree
 
-from config import DOWNLOAD_DIR
-from utils import make_valid_filename, BaseSpider
-
-
-LST_QUALITY = ["1080p", "720p", "480p", "240p"]
-DOWNLOAD_URL_PATTERNS = {
-    k: v for k, v in zip(LST_QUALITY, map(re.compile, [fr"quality_{quality}:\s?'(.*?)',?" for quality in LST_QUALITY]))
-}
-VIDEO_TITLE_PATTERN = re.compile(r"video_title:\s?'(.*?)',")
-FLASHVARS_PATTERN = re.compile(r"flashvars.*?=")
-
-DOWNLOAD_PATH = DOWNLOAD_DIR + os.sep + "pornhub"
+from .base import make_valid_filename, BaseSpider
 
 
 class Spider(BaseSpider):
 
-    def init(self):
-        if not os.path.exists(DOWNLOAD_PATH):
-            os.mkdir(DOWNLOAD_PATH)
+    name = "pornhub"
+
+    LST_QUALITY = ["1080p", "720p", "480p", "240p"]
+    DOWNLOAD_URL_PATTERNS = {
+        k: v for k, v in
+        zip(LST_QUALITY, map(re.compile, [fr"quality_{quality}:\s?'(.*?)',?" for quality in LST_QUALITY]))
+    }
+    VIDEO_TITLE_PATTERN = re.compile(r"video_title:\s?'(.*?)',")
+    FLASHVARS_PATTERN = re.compile(r"flashvars.*?=")
 
     def run(self, url):
         js_codes, param = self.get_js_codes(url)
@@ -61,13 +56,13 @@ class Spider(BaseSpider):
             text = text.strip()
             if text:
                 js_codes.append(text)
-        param = FLASHVARS_PATTERN.search(js_codes[0]).group()
+        param = self.FLASHVARS_PATTERN.search(js_codes[0]).group()
         return js_codes[:3], param[:-2]
 
     def parse_info(self, flashvars):
         download_url, download_quality = None, ""
-        video_title = VIDEO_TITLE_PATTERN.search(flashvars)
-        for quality, download_url_pattern in DOWNLOAD_URL_PATTERNS.items():
+        video_title = self.VIDEO_TITLE_PATTERN.search(flashvars)
+        for quality, download_url_pattern in self.DOWNLOAD_URL_PATTERNS.items():
             download_url = download_url_pattern.search(flashvars)
             if not download_url:
                 continue
@@ -80,7 +75,7 @@ class Spider(BaseSpider):
             video_title = f"{video_title.group(1)}.mp4"
         else:
             video_title = f"{uuid.uuid4().hex}.mp4"
-        video_filename = f"{DOWNLOAD_PATH}{os.sep}{make_valid_filename(video_title)}"
+        video_filename = f"{self.download_path}{os.sep}{make_valid_filename(video_title)}"
         return [final_download_url, download_quality, video_filename]
 
     # def search(self, keyword, op="relative", hd=False, start=0, end=20):

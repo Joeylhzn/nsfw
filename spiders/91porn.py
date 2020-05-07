@@ -1,29 +1,26 @@
-# -*- coding: utf-8 -*-
 import os
 import re
-import uuid
+import logging
 
 import js2py
 
 from lxml import etree
 
-from utils import BaseSpider, make_valid_filename
-from config import DOWNLOAD_DIR
-
-
-DOWNLOAD_PATH = DOWNLOAD_DIR + os.sep + "91porn"
-STRENCODE = re.compile(r"<!--\s*document.write\(strencode\((.*)\)\).*")
-SOURCE = re.compile(r".*src=\'(.*)\' type=\'video/mp4\'")
+from .base import BaseSpider, make_valid_filename
 
 
 class Spider(BaseSpider):
 
+    name = "91porn"
+
+    STRENCODE = re.compile(r"<!--\s*document.write\(strencode\((.*)\)\).*")
+    SOURCE = re.compile(r".*src=\'(.*)\' type=\'video/mp4\'")
+
     def init(self):
-        if not os.path.exists(DOWNLOAD_PATH):
-            os.mkdir(DOWNLOAD_PATH)
         r = self.get_html("http://www.91porn.com/js/md5.js")
         self.context = js2py.EvalJs()
         self.context.execute(r.text)
+        super(Spider, self).init()
 
     def run(self, url):
         r = self.get_html(url)
@@ -31,11 +28,15 @@ class Spider(BaseSpider):
             return None
         html = etree.HTML(r.content)
         title = html.xpath(r"""/html/head/title/text()""")[0].strip().replace('\n', '').replace('\t', '')
-        filename = DOWNLOAD_PATH + os.sep + make_valid_filename(f"{title}.mp4")
-        script = html.xpath(r"""//*[@id="player_one"]/script/text()""")[0].strip()
-        js_code = STRENCODE.match(script).group(1)
+        filename = self.download_path + os.sep + make_valid_filename(f"{title}.mp4")
+        try:
+            script = html.xpath(r"""//*[@id="player_one"]/script/text()""")[0].strip()
+        except KeyError:
+            self.log(f"{self.name} 达到访问上限", logging.ERROR)
+            return None
+        js_code = self.STRENCODE.match(script).group(1)
         params = list(map(lambda x: x[1: -1], js_code.split(",")))
         eval_value = self.context.strencode(*params)
-        video_url = SOURCE.match(eval_value).group(1)
+        video_url = self.SOURCE.match(eval_value).group(1)
         self.log(f"got video url {video_url},\ndownload path is {filename}")
         self.download(video_url, filename, url)
