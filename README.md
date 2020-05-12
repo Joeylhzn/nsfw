@@ -1,5 +1,7 @@
 ## NSFW
-支持 `pornhub` 和 `xvideos` 视频下载
+支持 `pornhub`, `xvideos`, `91porn` 视频下载
+
+支持python3.6+
 
 ### 安装依赖
 ```shell script
@@ -10,5 +12,7 @@ pip install -r requirements.txt
 
 ### 使用方式
 ```buildoutcfg
-# 将目标网址添加到nsfw.__init__.py文件下的urls里，执行即可
+python run.py -U [urls]  # 目标网站
+or
+python run.py -F [filename]  # 目标文件，记录地址
 ```

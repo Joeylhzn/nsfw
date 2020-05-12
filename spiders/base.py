@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import atexit
 import logging
 import threading
 
@@ -23,6 +22,11 @@ class BaseSpider:
 
     def __init__(self, q):
         self.q = q
+        self.workers = 0
+        self.filename = "undefined"
+        self.download_path = "undefined"
+        self.all_task_done = threading.Event()
+        self.mutex = threading.Lock()
         self.init()
 
     def init(self):
@@ -32,6 +36,15 @@ class BaseSpider:
 
     def log(self, info, level=logging.INFO):
         self.q.put((level, info))
+
+    def unfinished(self):
+        with self.mutex:
+            return self.workers
+
+    def task_done(self):
+        while self.unfinished():
+            self.all_task_done.wait()
+        self.log(f"{self.filename} Done")
 
     def run(self, *args, **kwargs):
         raise NotImplementedError
@@ -44,35 +57,40 @@ class BaseSpider:
         return None
 
     def download(self, *args, **kwargs):
-        video_url, filename, base_url, *_ = args
+        video_url, self.filename, base_url, *_ = args
         max_worker = kwargs.get("max_worker", 4)
+        self.workers = max_worker + 1
         r = requests.head(video_url, headers=DEFAULT_HEADERS)
         content_length = int(r.headers.get("Content-Length", 0))
         if content_length:
-            with open(filename, "wb") as f:
+            with open(self.filename, "wb") as f:
                 f.write(b'\0' * content_length)
             part_size, rest_size = divmod(content_length, max_worker)
             for i in range(max_worker):
                 start = part_size * i
                 end = start + part_size
-                threading.Thread(target=self.thread_download, args=(start, end, video_url, filename)).start()
+                threading.Thread(target=self.thread_download, args=(start, end, video_url, self.filename)).start()
             threading.Thread(target=self.thread_download,
-                             args=(content_length - rest_size, content_length, video_url, filename)).start()
+                             args=(content_length - rest_size, content_length, video_url, self.filename)).start()
         else:
             video = self.get_html(video_url, stream=True)
             if not video:
                 self.log(f"download failed: {video_url},\nsource: {base_url}", logging.WARNING)
                 return None
-            with open(filename, "wb") as f:
+            with open(self.filename, "wb") as f:
                 for chunk in video.iter_content(chunk_size=1024 * 1024):
                     f.write(chunk)
                     f.flush()
-        atexit.register(self.log, f"{filename} Done")
+        self.task_done()
 
     def thread_download(self, start, end, url, filename):
         headers = {'Range': 'bytes=%d-%d' % (start, end)}
         headers.update(DEFAULT_HEADERS)
         r = self.get_html(url, headers=headers, stream=True)
-        with open(filename, "r+b") as f:
-            f.seek(start)
-            f.write(r.content)
+        if r:
+            with open(filename, "r+b") as f:
+                f.seek(start)
+                f.write(r.content)
+        with self.mutex:
+            self.workers -= 1
+        self.all_task_done.set()
