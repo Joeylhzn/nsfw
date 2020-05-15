@@ -34,6 +34,3 @@ class Spider(BaseSpider):
             quality = "high"
         self.log(f"got video url {video_url},\nquality is {quality},\ndownload path is {filename}")
         self.download(video_url, filename, url, max_worker=10)
-
-
-

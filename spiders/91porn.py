@@ -28,7 +28,7 @@ class Spider(BaseSpider):
             return None
         html = etree.HTML(r.content)
         title = html.xpath(r"""/html/head/title/text()""")[0].strip().replace('\n', '').replace('\t', '')
-        filename = self.download_path + os.sep + make_valid_filename(f"{title}.mp4")
+        filename = self.download_path + os.sep + make_valid_filename(title)
         try:
             script = html.xpath(r"""//*[@id="player_one"]/script/text()""")[0].strip()
         except KeyError:

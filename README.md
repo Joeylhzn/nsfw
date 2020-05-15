@@ -1,5 +1,5 @@
 ## NSFW
-支持 `pornhub`, `xvideos`, `91porn` 视频下载
+支持 `pornhub`, `xvideos`, `91porn` , `hanime` 视频下载
 
 支持python3.6+
 

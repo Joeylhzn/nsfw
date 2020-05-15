@@ -3,7 +3,6 @@ import os
 import re
 import uuid
 import logging
-import logging.config
 import subprocess
 import tempfile
 
