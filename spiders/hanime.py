@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from Crypto.Cipher import AES
 
-from .base import BaseSpider, make_valid_filename
+from base import BaseSpider, make_valid_filename
 
 
 class Spider(BaseSpider):
@@ -65,7 +65,7 @@ class Spider(BaseSpider):
         self.merge()
         self.log(f"{self.filename} Done")
 
-    def download(self, m3u8, filename, max_worker=10):
+    def download(self, m3u8, max_worker=10):
         r = self.get_html(m3u8)
         if not r:
             return None
@@ -84,8 +84,9 @@ class Spider(BaseSpider):
         per_thread_tasks, left = divmod(len(download_urls), max_worker)
         self.tasks = max_worker
         self.files = [b"\0"] * len(download_urls)
-        for i in range(10):
-            threading.Thread(target=self.thread_download, args=(key, download_urls[i*10: (i+1)*10])).start()
+        for i in range(max_worker):
+            threading.Thread(target=self.thread_download,
+                             args=(key, download_urls[i*per_thread_tasks: (i+1)*per_thread_tasks])).start()
         if left:
             threading.Thread(target=self.thread_download, args=(key, download_urls[-left:])).start()
             self.tasks += 1
