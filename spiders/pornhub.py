@@ -71,9 +71,9 @@ class Spider(BaseSpider):
             return [None, None, None]
         final_download_url = download_url.group(1)
         if video_title:
-            video_title = f"{video_title.group(1)}.mp4"
+            video_title = video_title.group(1)
         else:
-            video_title = f"{uuid.uuid4().hex}.mp4"
+            video_title = uuid.uuid4().hex
         video_filename = f"{self.download_path}{os.sep}{make_valid_filename(video_title)}"
         return [final_download_url, download_quality, video_filename]
 

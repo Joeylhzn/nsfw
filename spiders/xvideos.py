@@ -19,7 +19,7 @@ class Spider(BaseSpider):
         if not r:
             return None
         html = etree.HTML(r.content)
-        title = url.rpartition("/")[-1]+".mp4"
+        title = url.rpartition("/")[-1]
         filename = self.download_path + os.sep + make_valid_filename(title)
         script = html.xpath(r"""//div[@id="video-player-bg"]/script[4]/text()""")[0]
         high = self.VIDEOURLHIGH.match(script)

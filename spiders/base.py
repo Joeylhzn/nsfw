@@ -25,8 +25,8 @@ class BaseSpider:
         self.tasks = 0
         self.filename = "undefined"
         self.download_path = "undefined"
-        self.all_task_done = threading.Event()
         self.mutex = threading.Lock()
+        self.all_task_done = threading.Condition(self.mutex)
         self.init()
 
     def init(self):
@@ -39,10 +39,11 @@ class BaseSpider:
 
     def unfinished(self):
         with self.mutex:
+            print("unlocked")
             return self.tasks
 
     def task_done(self):
-        while self.unfinished():
+        with self.all_task_done:
             self.all_task_done.wait()
         self.log(f"{self.filename} Done")
 
@@ -61,7 +62,7 @@ class BaseSpider:
     def download(self, *args, **kwargs):
         video_url, self.filename, base_url, *_ = args
         max_worker = kwargs.get("max_worker", 4)
-        self.tasks = max_worker + 1
+        self.tasks = max_worker
         r = requests.head(video_url, headers=DEFAULT_HEADERS)
         content_length = int(r.headers.get("Content-Length", 0))
         if content_length:
@@ -75,6 +76,7 @@ class BaseSpider:
             if rest_size:
                 threading.Thread(target=self.thread_download,
                                  args=(content_length - rest_size, content_length, video_url, self.filename)).start()
+                self.tasks += 1
         else:
             video = self.get_html(video_url, stream=True)
             if not video:
@@ -95,6 +97,7 @@ class BaseSpider:
             with open(filename, "r+b") as f:
                 f.seek(start)
                 f.write(r.content)
-        with self.mutex:
+        with self.all_task_done:
             self.tasks -= 1
-        self.all_task_done.set()
+            if self.tasks == 0:
+                self.all_task_done.notify_all()

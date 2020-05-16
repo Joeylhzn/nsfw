@@ -60,12 +60,12 @@ class Spider(BaseSpider):
                     f.flush()
 
     def task_done(self):
-        while self.unfinished():
+        with self.all_task_done:
             self.all_task_done.wait()
         self.merge()
         self.log(f"{self.filename} Done")
 
-    def download(self, m3u8, filename):
+    def download(self, m3u8, filename, max_worker=10):
         r = self.get_html(m3u8)
         if not r:
             return None
@@ -81,13 +81,14 @@ class Spider(BaseSpider):
 
         if key_uri:
             key = self.get_html(key_uri, need_content=True)
-        self.tasks = len(download_urls)
-        self.files = [b"\0"] * self.tasks
-        per_thread_tasks, left = divmod(self.tasks, 10)
+        per_thread_tasks, left = divmod(len(download_urls), max_worker)
+        self.tasks = max_worker
+        self.files = [b"\0"] * len(download_urls)
         for i in range(10):
             threading.Thread(target=self.thread_download, args=(key, download_urls[i*10: (i+1)*10])).start()
         if left:
-            threading.Thread(target=self.thread_download, args=(key, download_urls[-left:]))
+            threading.Thread(target=self.thread_download, args=(key, download_urls[-left:])).start()
+            self.tasks += 1
         self.task_done()
 
     def thread_download(self, key, download_urls):
@@ -97,6 +98,7 @@ class Spider(BaseSpider):
             if key:
                 cryptor = AES.new(key, AES.MODE_CBC, key)
                 self.files[index] = cryptor.decrypt(res)
-                with self.mutex:
-                    self.tasks -= 1
-                self.all_task_done.set()
+        with self.all_task_done:
+            self.tasks -= 1
+            if self.tasks == 0:
+                self.all_task_done.notify_all()
