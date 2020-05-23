@@ -45,8 +45,8 @@ def run(url, q):
         except ImportError:
             q.put((logging.WARNING, f"暂不支持{net}类型爬虫"))
             return None
-        spiders[net] = lib.Spider(q)
-    spider = spiders[net]
+        spiders[net] = lib
+    spider = spiders[net].Spider(q)
     spider.run(url)
 
 
@@ -60,7 +60,8 @@ def init():
 @click.option("-U", "--urls", multiple=True, help="目标网站(用空格划分)")
 @click.option("-F", "--file", help="从文件中读取目标网站")
 @click.option("-M", "--multi", type=click.Choice(['process', 'thread']), default="thread", help="多进程还是多线程")
-def main(urls, file, multi, max_workers=os.cpu_count()-1):
+@click.option("-W", "--workers", default=os.cpu_count()-1, help="pool大小")
+def main(urls, file, multi, workers):
     init()
     if urls:
         urls = [url.strip() for url in urls]
@@ -73,11 +74,11 @@ def main(urls, file, multi, max_workers=os.cpu_count()-1):
     if multi == "process" and os.name != "nt":
         q = multiprocessing.Manager().Queue()
         multiprocessing.Process(target=log_process, args=(q, ), name="log-process", daemon=True).start()
-        pool = ProcessPoolExecutor(max_workers=max_workers)
+        pool = ProcessPoolExecutor(max_workers=workers)
     else:
         q = queue.Queue()
         threading.Thread(target=log_process, args=(q,), name="log-thread", daemon=True).start()
-        pool = ThreadPoolExecutor(max_workers=max_workers)
+        pool = ThreadPoolExecutor(max_workers=workers)
     run_with_queue = partial(run, q=q)
     with pool as p:
         res = p.map(run_with_queue, urls)

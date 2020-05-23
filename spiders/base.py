@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import logging
 import threading
 
 import requests
+
+from Crypto.Cipher import AES
 
 from config import DEFAULT_HEADERS, ALLOW_STATUS, DOWNLOAD_DIR
 
@@ -31,8 +34,7 @@ class BaseSpider:
 
     def init(self):
         self.download_path = DOWNLOAD_DIR + os.sep + self.name
-        if not os.path.exists(self.download_path):
-            os.mkdir(self.download_path)
+        os.makedirs(self.download_path, exist_ok=True)
 
     def log(self, info, level=logging.INFO):
         self.q.put((level, info))
@@ -61,15 +63,15 @@ class BaseSpider:
 
     def download(self, *args, **kwargs):
         video_url, self.filename, base_url, *_ = args
-        max_worker = kwargs.get("max_worker", 4)
-        self.tasks = max_worker
+        max_workers = kwargs.get("max_workers", 4)
+        self.tasks = max_workers
         r = requests.head(video_url, headers=DEFAULT_HEADERS)
         content_length = int(r.headers.get("Content-Length", 0))
         if content_length:
             with open(self.filename, "wb") as f:
                 f.write(b'\0' * content_length)
-            part_size, rest_size = divmod(content_length, max_worker)
-            for i in range(max_worker):
+            part_size, rest_size = divmod(content_length, max_workers)
+            for i in range(max_workers):
                 start = part_size * i
                 end = start + part_size
                 threading.Thread(target=self.thread_download, args=(start, end, video_url, self.filename)).start()
@@ -97,6 +99,70 @@ class BaseSpider:
             with open(filename, "r+b") as f:
                 f.seek(start)
                 f.write(r.content)
+        with self.all_task_done:
+            self.tasks -= 1
+            if self.tasks == 0:
+                self.all_task_done.notify_all()
+
+
+class M3U8Spider(BaseSpider):
+
+    KEY = re.compile(r"#EXT-X-KEY:METHOD=(?P<method>.*),URI=\"(?P<uri>.*)\"")
+
+    def run(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def merge(self):
+        if self.files and self.filename:
+            with open(self.filename, "wb") as f:
+                for data in self.files:
+                    if not data:
+                        self.log("没有正确下载部分ts文件")
+                        return None
+                    f.write(data)
+                    f.flush()
+
+    def task_done(self):
+        with self.all_task_done:
+            self.all_task_done.wait()
+        self.merge()
+        self.log(f"{self.filename} Done")
+
+    def download(self, m3u8, max_workers=10):
+        r = self.get_html(m3u8)
+        if not r:
+            return None
+        content = r.text.split("\n")
+        download_urls, key_uri, key, count = [], "", "", 0
+        for index, line in enumerate(content):
+            if '#EXT-X-KEY' in line:
+                g = self.KEY.match(line)
+                key_uri = g.group("uri")
+            elif "EXTINF" in line:
+                download_urls.append((count, content[index + 1]))
+                count += 1
+
+        if key_uri:
+            key = self.get_html(key_uri, need_content=True)
+        per_thread_tasks, left = divmod(len(download_urls), max_workers)
+        self.tasks = max_workers
+        self.files = [b"\0"] * len(download_urls)
+        for i in range(max_workers):
+            threading.Thread(target=self.thread_download,
+                             args=(key, download_urls[i*per_thread_tasks: (i+1)*per_thread_tasks])).start()
+        if left:
+            threading.Thread(target=self.thread_download, args=(key, download_urls[-left:])).start()
+            self.tasks += 1
+        self.task_done()
+
+    def thread_download(self, key, download_urls):
+        for item in download_urls:
+            index, url = item
+            res = self.get_html(url, need_content=True)
+            if key:
+                cryptor = AES.new(key, AES.MODE_CBC, key)
+                res = cryptor.decrypt(res)
+            self.files[index] = res
         with self.all_task_done:
             self.tasks -= 1
             if self.tasks == 0:

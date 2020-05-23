@@ -33,4 +33,4 @@ class Spider(BaseSpider):
             video_url = high.group(1)
             quality = "high"
         self.log(f"got video url {video_url},\nquality is {quality},\ndownload path is {filename}")
-        self.download(video_url, filename, url, max_worker=10)
+        self.download(video_url, filename, url, max_workers=10)

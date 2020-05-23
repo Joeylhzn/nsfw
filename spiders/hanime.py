@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
 import os
-import re
 import logging
-import threading
 
 from urllib.parse import urlparse
 
-from Crypto.Cipher import AES
-
-from base import BaseSpider, make_valid_filename
+from .base import M3U8Spider, make_valid_filename
 
 
-class Spider(BaseSpider):
+class Spider(M3U8Spider):
 
     name = "hanime"
 
-    KEY = re.compile(r"#EXT-X-KEY:METHOD=(?P<method>.*),URI=\"(?P<uri>.*)\"")
     HEADERS = {
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
@@ -47,59 +42,4 @@ class Spider(BaseSpider):
                 break
         self.filename = self.download_path + os.sep + make_valid_filename(title)
         self.log(f"{self.name} spider run, download path is {self.filename}")
-        self.download(m3u8, self.filename)
-
-    def merge(self):
-        if self.files and self.filename:
-            with open(self.filename, "wb") as f:
-                for data in self.files:
-                    if not data:
-                        self.log("没有正确下载部分ts文件")
-                        return None
-                    f.write(data)
-                    f.flush()
-
-    def task_done(self):
-        with self.all_task_done:
-            self.all_task_done.wait()
-        self.merge()
-        self.log(f"{self.filename} Done")
-
-    def download(self, m3u8, max_worker=10):
-        r = self.get_html(m3u8)
-        if not r:
-            return None
-        content = r.text.split("\n")  # 获取第一层M3U8文件内容
-        download_urls, key_uri, key, count = [], "", "", 0
-        for index, line in enumerate(content):
-            if '#EXT-X-KEY' in line:
-                g = self.KEY.match(line)
-                key_uri = g.group("uri")
-            elif "EXTINF" in line:
-                download_urls.append((count, content[index + 1]))
-                count += 1
-
-        if key_uri:
-            key = self.get_html(key_uri, need_content=True)
-        per_thread_tasks, left = divmod(len(download_urls), max_worker)
-        self.tasks = max_worker
-        self.files = [b"\0"] * len(download_urls)
-        for i in range(max_worker):
-            threading.Thread(target=self.thread_download,
-                             args=(key, download_urls[i*per_thread_tasks: (i+1)*per_thread_tasks])).start()
-        if left:
-            threading.Thread(target=self.thread_download, args=(key, download_urls[-left:])).start()
-            self.tasks += 1
-        self.task_done()
-
-    def thread_download(self, key, download_urls):
-        for item in download_urls:
-            index, url = item
-            res = self.get_html(url, need_content=True)
-            if key:
-                cryptor = AES.new(key, AES.MODE_CBC, key)
-                self.files[index] = cryptor.decrypt(res)
-        with self.all_task_done:
-            self.tasks -= 1
-            if self.tasks == 0:
-                self.all_task_done.notify_all()
+        self.download(m3u8)
