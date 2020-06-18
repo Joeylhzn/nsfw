@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 import os
-import re
 
 
 __all__ = [
-    "DEFAULT_HEADERS", "LOGGER_DIR", "DOWNLOAD_DIR", "LOGGING_CONF", "PROXIES", "ALLOW_STATUS"
+    "DEFAULT_HEADERS", "LOGGER_DIR", "DOWNLOAD_DIR",
+    "LOGGING_CONF", "PROXIES", "ALLOW_STATUS"
 ]
 
 DIRNAME = os.getcwd()
 DOWNLOAD_DIR = DIRNAME + os.sep + "download"
 LOGGER_DIR = DIRNAME + os.sep + "log"
 
-DEFAULT_HEADERS = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, "
-                                 "like Gecko) Chrome/80.0.3987.116 Safari/537.36"}
+DEFAULT_HEADERS = {
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/80.0.3987.116 Safari/537.36"
+}
 PROXIES = {}
 ALLOW_STATUS = [200, 206, 304]
 

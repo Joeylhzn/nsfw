@@ -27,14 +27,16 @@ class Spider(BaseSpider):
         if not r:
             return None
         html = etree.HTML(r.content)
-        title = html.xpath(r"""/html/head/title/text()""")[0].strip().replace('\n', '').replace('\t', '')
+        target = self.xpath(html, r"/html/head/title/text()")
+        if not target:
+            return None
+        title = target.strip().replace('\n', '').replace('\t', '')
         filename = self.download_path + os.sep + make_valid_filename(title)
-        try:
-            script = html.xpath(r"""//*[@id="player_one"]/script/text()""")[0].strip()
-        except KeyError:
+        script = self.xpath(html, r'//*[@id="player_one"]/script/text()')
+        if not script:
             self.log(f"{self.name} 达到访问上限", logging.ERROR)
             return None
-        js_code = self.STRENCODE.match(script).group(1)
+        js_code = self.STRENCODE.match(script.strip()).group(1)
         params = list(map(lambda x: x[1: -1], js_code.split(",")))
         eval_value = self.context.strencode(*params)
         video_url = self.SOURCE.match(eval_value).group(1)
