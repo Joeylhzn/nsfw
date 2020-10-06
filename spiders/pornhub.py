@@ -34,8 +34,8 @@ class Spider(BaseSpider):
             return None
         with tempfile.NamedTemporaryFile(mode="w", suffix=".js") as f:
             for code in js_codes:
-                f.write(code)
-            f.write(f"console.log({param})")
+                f.write(code + '\n')
+            f.write(f"\nconsole.log({param})")
             f.seek(0)
             flashvars = subprocess.check_output(
                 ["node", f.name]).decode("utf-8")
@@ -65,7 +65,7 @@ class Spider(BaseSpider):
             if text:
                 js_codes.append(text)
         param = self.FLASHVARS_PATTERN.search(js_codes[0]).group()
-        return js_codes[:3], param[:-2]
+        return js_codes[: 4], param[:-2]
 
     def parse_info(self, flashvars):
         download_url, download_quality = None, ""
@@ -83,8 +83,7 @@ class Spider(BaseSpider):
             video_title = video_title.group(1)
         else:
             video_title = uuid.uuid4().hex
-        video_filename = f"{self.download_path}{os.sep}" \
-                         f"{make_valid_filename(video_title)}"
+        video_filename = make_valid_filename(self.download_path, video_title)
         return [final_download_url, download_quality, video_filename]
 
     # def search(self, keyword, op="relative", hd=False, start=0, end=20):

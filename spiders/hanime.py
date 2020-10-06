@@ -41,6 +41,6 @@ class Spider(M3U8Spider):
             if data["kind"] == "hls":
                 m3u8 = data["url"]
                 break
-        self.filename = self.download_path + os.sep + make_valid_filename(title)
+        self.filename = make_valid_filename(self.download_path, title)
         self.log(f"{self.name} spider run, download path is {self.filename}")
         self.download(m3u8)

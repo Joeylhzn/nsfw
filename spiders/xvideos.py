@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import re
+import uuid
 
 from urllib.parse import urljoin
 
@@ -36,7 +37,9 @@ class Spider(M3U8Spider):
             return None
         html = etree.HTML(r.content)
         title = url.rpartition("/")[-1]
-        filename = self.download_path + os.sep + make_valid_filename(title)
+        filename = make_valid_filename(self.download_path, title)
+        if os.path.exists(filename):
+            filename = self.download_path + os.sep + uuid.uuid4().hex + ".mp4"
         script = self.xpath(html,
                             r'//div[@id="video-player-bg"]/script[4]/text()')
         if not script:

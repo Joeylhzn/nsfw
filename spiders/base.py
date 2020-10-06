@@ -2,6 +2,7 @@
 import os
 import re
 import time
+import uuid
 import asyncio
 import logging
 import threading
@@ -17,19 +18,23 @@ from Crypto.Cipher import AES
 from config import DEFAULT_HEADERS, ALLOW_STATUS, DOWNLOAD_DIR
 
 
-def make_valid_filename(filename, suffix=".mp4"):
+def make_valid_filename(base_path, filename, suffix=".mp4"):
     if os.name == "nt":
         if len(filename) > 200:
-            filename = filename[:-4][:50] + "..."
-        return filename.translate(
+            filename = filename[:50] + "..."
+        filename = filename.translate(
             str.maketrans(dict.fromkeys(' \\ / : * ? " < > |'.split(), ""))
         ) + suffix
-    return filename + suffix
+    filename = os.path.join(base_path, filename)
+    if os.path.exists(filename):
+        filename = os.path.join(base_path, f"{uuid.uuid4().hex}{suffix}")
+    return filename
 
 
 class BaseSpider:
 
     name = "base"
+    search_url_template = ""
 
     def __init__(self, q):
         self.q = q
@@ -63,7 +68,7 @@ class BaseSpider:
                 self.all_tasks_done.wait()
         while self.failed_parts:
             part = self.failed_parts.pop()
-            self.thread_download(part, retry_flag=True)
+            self.thread_download(*part, retry_flag=True)
         self.log(f"{self.filename} Done")
 
     def run(self, *args, **kwargs):
@@ -93,6 +98,17 @@ class BaseSpider:
         if r and r.status_code in ALLOW_STATUS:
             return r.content if need_content else r
         return None
+
+    def search(self, keyword, xpath, limit=10):
+        if not self.search_url_template:
+            return []
+        res = self.xpath(
+            self.get_html(self.search_url_template.format(keyword=keyword)),
+            xpath
+        )
+        if not isinstance(res, list):
+            res = []
+        return res[: limit]
 
     def download(self, *args, **kwargs):
         video_url, self.filename, base_url, *_ = args
@@ -173,31 +189,46 @@ class M3U8Spider(BaseSpider):
             return None
         content = r.text.split("\n")
         download_urls, key_uri, key, count = [], "", "", 0
+        download_urls_set = set()
         for index, line in enumerate(content):
             if '#EXT-X-KEY' in line:
                 g = self.KEY.match(line)
                 key_uri = g.group("uri")
             elif "EXTINF" in line:
-                download_urls.append(
-                    (count, urljoin(m3u8, content[index + 1]))
-                )
+                if "EXT-X-BYTERANGE" in content[index + 1]:
+                    ts = urljoin(m3u8, content[index + 2])
+                else:
+                    ts = urljoin(m3u8, content[index + 1])
+                if ts in download_urls_set:
+                    continue
+                else:
+                    download_urls_set.add(ts)
+                download_urls.append((count, ts))
                 count += 1
 
         if key_uri:
-            key = self.get_html(key_uri, need_content=True)
-        per_thread_tasks, left = divmod(len(download_urls), max_workers)
-        self.tasks = max_workers
-        self.files = [b"\0"] * len(download_urls)
-        for i in range(max_workers):
-            threading.Thread(
-                target=self.thread_download,
-                args=(key, download_urls[i*per_thread_tasks:
-                                         (i+1)*per_thread_tasks])
-            ).start()
-        if left:
-            threading.Thread(target=self.thread_download,
-                             args=(key, download_urls[-left:])).start()
-            self.tasks += 1
+            key = self.get_html(urljoin(m3u8, key_uri), need_content=True)
+        len_download_urls = len(download_urls)
+        self.files = [b"\0"] * len_download_urls
+        if len_download_urls <= max_workers:
+            self.tasks = len_download_urls
+            for i in range(self.tasks):
+                threading.Thread(
+                    target=self.thread_download, args=(key, [download_urls[i]])
+                ).start()
+        else:
+            per_thread_tasks, left = divmod(len_download_urls, max_workers)
+            self.tasks = max_workers
+            for i in range(self.tasks):
+                threading.Thread(
+                    target=self.thread_download,
+                    args=(key, download_urls[i*per_thread_tasks:
+                                             (i+1)*per_thread_tasks])
+                ).start()
+            if left:
+                threading.Thread(target=self.thread_download,
+                                 args=(key, download_urls[-left:])).start()
+                self.tasks += 1
         self.tasks_done()
 
     def thread_download(self, key, download_urls):

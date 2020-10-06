@@ -31,7 +31,7 @@ class Spider(BaseSpider):
         if not target:
             return None
         title = target.strip().replace('\n', '').replace('\t', '')
-        filename = self.download_path + os.sep + make_valid_filename(title)
+        filename = make_valid_filename(self.download_path, title)
         script = self.xpath(html, r'//*[@id="player_one"]/script/text()')
         if not script:
             self.log(f"{self.name} 达到访问上限", logging.ERROR)
