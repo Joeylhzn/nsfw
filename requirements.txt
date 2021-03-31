@@ -1,5 +1,5 @@
 Js2Py==0.70
-lxml==4.6.2
+lxml==4.6.3
 requests==2.23.0
 click==7.1.2
 pycryptodome==3.9.7
