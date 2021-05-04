@@ -243,3 +243,32 @@ class M3U8Spider(BaseSpider):
             self.tasks -= 1
             if self.tasks == 0:
                 self.all_tasks_done.notify_all()
+
+
+class AsyncSpider(BaseSpider):
+
+    def __init__(self, q):
+        super(AsyncSpider, self).__init__(q)
+        self.browser = None
+        self.event_loop = asyncio.get_event_loop()
+
+    async def task_done(self):
+        with self.all_tasks_done:
+            self.all_tasks_done.wait()
+        await self.browser.close()
+        self.log(f"{self.filename} Done")
+
+    def run(self, *args, **kwargs):
+        raise NotImplementedError
+
+    async def download(self, url):
+        print("asdf ")
+        if not self.browser:
+            self.browser = await pyppeteer.launch(headless=False)
+        page = await self.browser.newPage()
+        await page.goto(url,)
+        r = await page.content()
+        print(r)
+
+    async def thread_download(self, *args, **kwargs):
+        pass

@@ -14,6 +14,7 @@ from functools import partial
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 from config import LOGGING_CONF, DOWNLOAD_DIR, LOGGER_DIR
+from notification import NotifyMsg, notifier
 
 
 spiders = {}
@@ -27,6 +28,8 @@ def log_process(q):
         msg = q.get()
         if isinstance(msg, str) and msg == "quit":
             logger.info("quit logging")
+        elif isinstance(msg, NotifyMsg):
+            notifier.notify(msg)
         else:
             level, log = msg
             logger.log(level, log)
@@ -59,7 +62,8 @@ def init():
 @click.command()
 @click.option("-U", "--urls", multiple=True, help="目标网站(用空格划分)")
 @click.option("-F", "--file", help="从文件中读取目标网站")
-@click.option("-M", "--multi", type=click.Choice(['process', 'thread']), default="thread", help="多进程还是多线程")
+@click.option("-M", "--multi", type=click.Choice(['process', 'thread']),
+              default="thread", help="多进程还是多线程")
 @click.option("-W", "--workers", default=os.cpu_count()-1, help="pool大小")
 def main(urls, file, multi, workers):
     init()
@@ -67,17 +71,20 @@ def main(urls, file, multi, workers):
         urls = [url.strip() for url in urls]
     elif file:
         with open(file, "r", encoding="utf-8", errors="ignore") as f:
-            urls = list(map(str.strip, filter(lambda x: x.strip(), f.readlines())))
+            urls = list(map(str.strip, filter(lambda x: x.strip(),
+                                              f.readlines())))
     else:
         raise Exception("urls or file should be provided")
 
     if multi == "process" and os.name != "nt":
         q = multiprocessing.Manager().Queue()
-        multiprocessing.Process(target=log_process, args=(q, ), name="log-process", daemon=True).start()
+        multiprocessing.Process(target=log_process, args=(q, ),
+                                name="log-process", daemon=True).start()
         pool = ProcessPoolExecutor(max_workers=workers)
     else:
         q = queue.Queue()
-        threading.Thread(target=log_process, args=(q,), name="log-thread", daemon=True).start()
+        threading.Thread(target=log_process, args=(q,), name="log-thread",
+                         daemon=True).start()
         pool = ThreadPoolExecutor(max_workers=workers)
     run_with_queue = partial(run, q=q)
     with pool as p:
@@ -91,3 +98,4 @@ def main(urls, file, multi, workers):
 
 if __name__ == "__main__":
     main()
+    # todo: https://www.youporn.com/
