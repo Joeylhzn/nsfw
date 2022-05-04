@@ -14,7 +14,6 @@ from functools import partial
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 from config import LOGGING_CONF, DOWNLOAD_DIR, LOGGER_DIR
-from notification import NotifyMsg, notifier
 
 
 spiders = {}
@@ -28,8 +27,6 @@ def log_process(q):
         msg = q.get()
         if isinstance(msg, str) and msg == "quit":
             logger.info("quit logging")
-        elif isinstance(msg, NotifyMsg):
-            notifier.notify(msg)
         else:
             level, log = msg
             logger.log(level, log)
@@ -45,8 +42,8 @@ def run(url, q):
     if net not in spiders:
         try:
             lib = importlib.import_module(f"spiders.{net}")
-        except ImportError:
-            q.put((logging.WARNING, f"暂不支持{net}类型爬虫"))
+        except ImportError as e:
+            q.put((logging.WARNING, f"暂不支持{net}类型爬虫, err: {e}"))
             return None
         spiders[net] = lib
     spider = spiders[net].Spider(q)

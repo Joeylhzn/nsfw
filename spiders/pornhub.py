@@ -8,20 +8,20 @@ import tempfile
 
 from lxml import etree
 
-from .base import make_valid_filename, BaseSpider
+from .base import make_valid_filename, M3U8Spider
 
 
-LST_QUALITY = ["1080p", "720p", "480p", "240p"]
+LST_QUALITY = ["1080", "720", "480", "240"]
 
 
-class Spider(BaseSpider):
+class Spider(M3U8Spider):
 
     name = "pornhub"
 
     DOWNLOAD_URL_PATTERNS = {
         k: v for k, v in
         zip(LST_QUALITY,
-            map(re.compile, [fr"quality_{quality}:\s?'(.*?)',?"
+            map(re.compile, [fr"videoUrl: \s?'(.*{quality}P.*?)',?"
                              for quality in LST_QUALITY]))
     }
     VIDEO_TITLE_PATTERN = re.compile(r"video_title:\s?'(.*?)',")
@@ -45,11 +45,11 @@ class Spider(BaseSpider):
         info = self.parse_info(flashvars)
         if not all(info):
             return None
-        video_url, quality, filename = info
+        video_url, quality, self.filename = info
         self.log(f"got video url {video_url},\n"
                  f"quality is {quality},\n"
-                 f"download path is {filename}")
-        self.download(video_url, filename, url, max_workers=10)
+                 f"download path is {self.filename}")
+        self.download(video_url, max_workers=10)
 
     def get_js_codes(self, url):
         js_codes = []
@@ -65,7 +65,7 @@ class Spider(BaseSpider):
             if text:
                 js_codes.append(text)
         param = self.FLASHVARS_PATTERN.search(js_codes[0]).group()
-        return js_codes[: 4], param[:-2]
+        return js_codes[:4], param[:-2]
 
     def parse_info(self, flashvars):
         download_url, download_quality = None, ""
@@ -86,17 +86,3 @@ class Spider(BaseSpider):
         video_filename = make_valid_filename(self.download_path, video_title)
         return [final_download_url, download_quality, video_filename]
 
-    # def search(self, keyword, op="relative", hd=False, start=0, end=20):
-    #     query = {"search": keyword}
-    #     if op != "relative" and op in ["mr", "mv", "tr", "lg"]:
-    #         # mr: 最新, mv: 最多, tr: 评价最好, lg: 最长
-    #         query["o"] = op
-    #     if hd:  # 是否高清
-    #         query["hd"] = 1
-    #     r = self.get_html(SEARCH_URL, params=query)
-    #     if r:
-    #         html = etree.HTML(r.text)
-    #         target_urls = html.xpath(r'//ul[@id="videoSearchResult"]//'
-    #                                  r'div[@class="thumbnail-info-wrapper clearfix"]/span/a/@href')[start:end]
-    #         return map(partial(urljoin, PH_URL), target_urls)
-    #     return None

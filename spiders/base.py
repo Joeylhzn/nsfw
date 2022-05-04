@@ -205,6 +205,10 @@ class M3U8Spider(BaseSpider):
                     download_urls_set.add(ts)
                 download_urls.append((count, ts))
                 count += 1
+            elif "EXT-X-STREAM-INF" in line:
+                ts = urljoin(m3u8, content[index + 1])
+                self.download(ts)
+                return None
 
         if key_uri:
             key = self.get_html(urljoin(m3u8, key_uri), need_content=True)
