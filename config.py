@@ -12,9 +12,8 @@ DOWNLOAD_DIR = DIRNAME + os.sep + "download"
 LOGGER_DIR = DIRNAME + os.sep + "log"
 
 DEFAULT_HEADERS = {
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/80.0.3987.116 Safari/537.36"
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                  "(KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62"
 }
 PROXIES = {}
 ALLOW_STATUS = [200, 206, 304]
