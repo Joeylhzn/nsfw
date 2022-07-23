@@ -9,6 +9,7 @@ import threading
 
 import requests
 import pyppeteer
+import cloudscraper
 
 from urllib.parse import urljoin
 
@@ -47,6 +48,9 @@ class BaseSpider:
 
         self.mutex = threading.Lock()
         self.all_tasks_done = threading.Condition(self.mutex)
+
+        self.cloudflare = None
+
         self.init()
 
     def init(self):
@@ -89,6 +93,24 @@ class BaseSpider:
                 r = requests.get(url, headers=headers, params=params,
                                  stream=stream)
             except requests.exceptions.ConnectionError:
+                repeat -= 1
+                time.sleep(3)
+                self.log(f"get {url} failed, retry!")
+                continue
+            else:
+                break
+        if r and r.status_code in ALLOW_STATUS:
+            return r.content if need_content else r
+        return None
+
+    def get_cloudflare_html(self, url, repeat=3, need_content=False):
+        r = None
+        if not getattr(self, "cloudflare") or not isinstance(self.cloudflare, cloudscraper.CloudScraper):
+            self.cloudflare = cloudscraper.create_scraper()
+        while repeat > 0:
+            try:
+                r = self.cloudflare.get(url)
+            except cloudscraper.exceptions.CloudflareException:
                 repeat -= 1
                 time.sleep(3)
                 self.log(f"get {url} failed, retry!")
@@ -238,7 +260,7 @@ class M3U8Spider(BaseSpider):
     def thread_download(self, key, download_urls):
         for item in download_urls:
             index, url = item
-            res = self.get_html(url, need_content=True)
+            res = self.get_html(url, need_content=True) or self.get_cloudflare_html(url, need_content=True)
             if key:
                 cryptor = AES.new(key, AES.MODE_CBC, key)
                 res = cryptor.decrypt(res)
